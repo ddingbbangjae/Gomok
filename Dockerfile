@@ -1,0 +1,27 @@
+# Frontend build stage
+FROM node:20 AS frontend
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm ci --include=dev
+COPY frontend ./
+RUN npm run build
+
+# Backend stage
+FROM python:3.12-slim AS backend
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/backend \
+    PORT=8080
+
+COPY backend/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend ./backend
+COPY --from=frontend /app/frontend/dist ./frontend/dist
+
+ENV FRONTEND_DIST=/app/frontend/dist
+
+WORKDIR /app/backend
+EXPOSE 8080
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --proxy-headers"]
