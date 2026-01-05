@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isRoomPlayer(room) {
+      return isAuthenticated() && (room.data.players.B.uid == request.auth.uid || room.data.players.W.uid == request.auth.uid);
+    }
+
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /rooms/{roomId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (request.resource.data.players.B.uid == request.auth.uid || request.resource.data.players.W.uid == request.auth.uid);
+      allow delete: if false;
+
+      match /chat/{chatId} {
+        allow read: if isAuthenticated();
+        allow create: if isRoomPlayer(get(/databases/$(database)/documents/rooms/$(roomId)));
+        allow update, delete: if false;
+      }
+    }
+
+    match /matches/{matchId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && (request.resource.data.players.B.uid == request.auth.uid || request.resource.data.players.W.uid == request.auth.uid);
+      allow update: if isAuthenticated() && request.resource.data.winnerReview is string && ((request.resource.data.winner == 'B' && request.auth.uid == request.resource.data.players.B.uid) || (request.resource.data.winner == 'W' && request.auth.uid == request.resource.data.players.W.uid));
+      allow delete: if false;
+    }
+  }
+}
